@@ -1,0 +1,91 @@
+# The 14 detection rules, as data.
+#   id:         rule id, matched to a check function in rules.py
+#   applies_to: "url" (any single link) or "email" (the whole message)
+#   points:     added to the rule score when the rule fires (score is capped at 100)
+#   reason:     the sentence shown to the user
+#   attack:     MITRE ATT&CK technique
+#               T1566 = Phishing, .001 = attachment, .002 = link, T1036 = Masquerading
+
+- id: R01
+  applies_to: url
+  points: 30
+  reason: "The link points to a raw IP address instead of a domain name."
+  attack: T1566.002
+
+- id: R02
+  applies_to: url
+  points: 25
+  reason: "The link contains '@' before the host; browsers ignore the text before it."
+  attack: T1566.002
+
+- id: R03
+  applies_to: url
+  points: 25
+  reason: "The host uses punycode (xn--), which can hide lookalike letters."
+  attack: T1036
+
+- id: R04
+  applies_to: url
+  points: 35
+  reason: "A brand name appears in the link, but the site is not registered to that brand."
+  attack: T1036
+
+- id: R05
+  applies_to: url
+  points: 15
+  reason: "The host has four or more subdomain levels, often used to bury the real domain."
+  attack: T1566.002
+
+- id: R06
+  applies_to: url
+  points: 20
+  reason: "Login or verify wording combined with hyphens in the host name."
+  attack: T1566.002
+
+- id: R07
+  applies_to: url
+  points: 10
+  reason: "The link uses a URL shortener, which hides the real destination."
+  attack: T1566.002
+
+- id: R08
+  applies_to: url
+  points: 5
+  reason: "The link does not use HTTPS."
+  attack: T1566.002
+
+- id: R09
+  applies_to: email
+  points: 30
+  reason: "Replies go to a different domain than the sender's (From vs Reply-To)."
+  attack: T1566
+
+- id: R10
+  applies_to: email
+  points: 35
+  reason: "The sender's display name names a brand, but the address is not from that brand."
+  attack: T1036
+
+- id: R11
+  applies_to: email
+  points: 30
+  reason: "SPF, DKIM or DMARC failed in the Authentication-Results header."
+  attack: T1566
+
+- id: R12
+  applies_to: email
+  points: 15
+  reason: "The message uses urgency or threat wording to rush the reader."
+  attack: T1566
+
+- id: R13
+  applies_to: email
+  points: 35
+  reason: "A link's text shows one domain, but the link actually goes to another."
+  attack: T1566.002
+
+- id: R14
+  applies_to: email
+  points: 25
+  reason: "An attachment has a risky file type or a double extension."
+  attack: T1566.001

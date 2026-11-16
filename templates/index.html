@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Threat-Shield</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 860px; margin: 24px auto;
+           padding: 0 16px; color: #1f2328; background: #f6f8fa; }
+    h1 { margin-bottom: 4px; }
+    .note { color: #59636e; margin-top: 0; }
+    .box { background: #fff; border: 1px solid #d1d9e0; border-radius: 8px;
+           padding: 16px; margin: 16px 0; }
+    input[type=text], textarea { width: 100%; padding: 8px; font-size: 15px; box-sizing: border-box;
+                       border: 1px solid #d1d9e0; border-radius: 6px; }
+    textarea { font-family: ui-monospace, monospace; font-size: 13px; height: 160px; }
+    .alert { background: #ffebe9; border: 1px solid #cf222e; color: #82071e;
+             border-radius: 8px; padding: 10px 16px; margin: 16px 0; }
+    .message { background: #dafbe1; border: 1px solid #1a7f37; border-radius: 8px;
+               padding: 10px 16px; margin: 16px 0; }
+    .feedback { margin-top: 12px; }
+    .feedback form { display: inline; }
+    .feedback button { background: #59636e; }
+    button { margin-top: 8px; padding: 8px 16px; font-size: 15px; border: 0;
+             border-radius: 6px; background: #1f6feb; color: #fff; cursor: pointer; }
+    .verdict { display: inline-block; padding: 4px 10px; border-radius: 12px;
+               color: #fff; font-weight: 600; text-transform: uppercase; font-size: 13px; }
+    .benign { background: #1a7f37; }
+    .suspicious { background: #bf8700; }
+    .malicious { background: #cf222e; }
+    .error { color: #cf222e; }
+    .mono { font-family: ui-monospace, monospace; word-break: break-all; }
+    table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid #d1d9e0; }
+    th { color: #59636e; font-weight: 600; }
+  </style>
+</head>
+<body>
+  <h1>Threat-Shield</h1>
+  <p class="note">Paste a URL or an email to get a verdict. Everything is analysed as text only:
+    links are never visited and attachments are never opened.</p>
+
+  {% for alert in alerts %}
+    <div class="alert"><strong>Repeat domain:</strong>
+      {{ alert.domain | defang }} has been flagged {{ alert.times }} times.</div>
+  {% endfor %}
+
+  {% if message %}<div class="message">{{ message }}</div>{% endif %}
+
+  <div class="box">
+    <form method="post" action="/analyse/url">
+      <label for="url"><strong>URL</strong></label>
+      <input type="text" id="url" name="url" placeholder="http://login.example.test/verify" required>
+      <button type="submit">Check URL</button>
+    </form>
+  </div>
+
+  <div class="box">
+    <form method="post" action="/analyse/email">
+      <label for="email_text"><strong>Email</strong> (paste the full message with headers)</label>
+      <textarea id="email_text" name="email_text" required
+        placeholder="From: &quot;Example Support&quot; &lt;help@example.test&gt;&#10;Reply-To: ...&#10;Subject: ...&#10;&#10;Body..."></textarea>
+      <button type="submit">Check email</button>
+    </form>
+  </div>
+
+  {% if error %}
+    <p class="error">{{ error }}</p>
+  {% endif %}
+
+  {% if result %}
+  <div class="box">
+    <p>
+      <span class="verdict {{ result.verdict }}">{{ result.verdict }}</span>
+      &nbsp;<strong>Score {{ result.score }}/100</strong>
+      &nbsp;(rules {{ result.rule_score }}, model {{ result.ml_score }})
+      &nbsp;· {{ result.elapsed_ms }} ms
+    </p>
+    {% if result.links is defined %}
+      <p>From <span class="mono">{{ result.from_address | defang }}</span>
+         · Subject: {{ result.subject }}</p>
+    {% else %}
+      <p class="mono">{{ result.input | defang }}</p>
+    {% endif %}
+    <strong>Reasons</strong>
+    <ul>
+      {% for line in result.reasons %}<li>{{ line }}</li>{% endfor %}
+    </ul>
+
+    {% if result.links %}
+    <strong>Links</strong>
+    <table>
+      <tr><th>#</th><th>Link</th><th>Verdict</th><th>Score</th><th>Rules</th></tr>
+      {% for link in result.links %}
+      <tr>
+        <td>{{ loop.index }}</td>
+        <td class="mono">{{ link.input | defang }}</td>
+        <td><span class="verdict {{ link.verdict }}">{{ link.verdict }}</span></td>
+        <td>{{ link.score }}</td>
+        <td>{{ link.rule_ids | join(", ") }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+    {% endif %}
+
+    <div class="feedback">Was this verdict right?
+      <form method="post" action="/feedback">
+        <input type="hidden" name="analysis_id" value="{{ result.id }}">
+        <input type="hidden" name="correct" value="1">
+        <button type="submit">Verdict was right</button>
+      </form>
+      <form method="post" action="/feedback">
+        <input type="hidden" name="analysis_id" value="{{ result.id }}">
+        <input type="hidden" name="correct" value="0">
+        <button type="submit">Verdict was wrong</button>
+      </form>
+    </div>
+  </div>
+  {% endif %}
+
+  <div class="box">
+    <strong>History</strong>
+    {% if history %}
+    <table>
+      <tr><th>Time</th><th>Type</th><th>Input</th><th>Verdict</th><th>Score</th><th>Feedback</th></tr>
+      {% for row in history %}
+      <tr>
+        <td>{{ row.created_at }}</td>
+        <td>{{ row.kind }}</td>
+        <td class="mono">{{ row.input[:80] | defang }}</td>
+        <td><span class="verdict {{ row.verdict }}">{{ row.verdict }}</span></td>
+        <td>{{ row.score }}</td>
+        <td>{% if row.feedback == 1 %}right{% elif row.feedback == 0 %}wrong{% else %}–{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </table>
+    {% else %}
+    <p class="note">No checks yet.</p>
+    {% endif %}
+  </div>
+</body>
+</html>
